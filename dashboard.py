@@ -82,18 +82,17 @@ def carregar_dados():
     
     df_chuva = processar_arquivo_chuva('data/chuva_sp.csv')
     
-    # Verificar se arquivo de acidentes existe e é válido
-    if os.path.exists('data/acidente_transito.kmz') and os.path.getsize('data/acidente_transito.kmz') > 100000000:
+    # Verificar se arquivo de acidentes existe
+    if os.path.exists('data/acidente_transito.kmz'):
         try:
             gdf_acidentes_todos = processar_acidentes_kmz('data/acidente_transito.kmz')
             gdf_acidentes = filtrar_acidentes_poste(gdf_acidentes_todos)
         except Exception as e:
-            st.error(f"Erro ao processar arquivo de acidentes: {str(e)}")
-            # Modo demo como fallback
+            st.warning(f"⚠️ Erro ao processar arquivo: {str(e)}. Usando modo demonstração.")
             gdf_acidentes = criar_dados_demo_acidentes()
     else:
-        # Modo demo: dados sintéticos baseados em padrões reais
-        st.info("ℹ️ Modo demonstração: Usando amostra de dados para visualização (arquivo completo: 326MB, 192k acidentes)")
+        # Modo demo com proporções realistas de risco
+        st.info("ℹ️ **Modo Demonstração:** Usando dados sintéticos (arquivo completo: 326MB, 192.850 acidentes)")
         gdf_acidentes = criar_dados_demo_acidentes()
     
     gdf_alagamento = processar_todos_shapefiles('data/alagamento')
@@ -101,25 +100,62 @@ def carregar_dados():
     return df_chuva, gdf_acidentes, gdf_alagamento
 
 def criar_dados_demo_acidentes():
-    """Cria dados sintéticos de acidentes para demonstração."""
+    """Cria dados sintéticos respeitando proporções de índice de risco."""
     import geopandas as gpd
     from shapely.geometry import Point
     import numpy as np
     
-    # Gerar 5000 pontos com distribuição realista
     np.random.seed(42)
-    n_points = 5000
     
-    # Distribuição mais concentrada nas áreas centrais (padrão realista)
-    center_lat, center_lon = -23.55, -46.63  # Centro SP
-    lats = np.random.normal(center_lat, 0.15, n_points)
-    lons = np.random.normal(center_lon, 0.15, n_points)
+    # Criar 3 clusters de ALTO RISCO (densidade muito alta - 50+ eventos/área)
+    high_risk_clusters = [
+        (-23.547, -46.634, 1500),  # Região da Paulista (CRÍTICA)
+        (-23.533, -46.625, 1200),  # Centro histórico (CRÍTICA)
+        (-23.575, -46.648, 1000),  # Marginal Tietê (CRÍTICA)
+    ]
     
-    # Limitar aos bounds reais
+    high_risk_points = []
+    for lat, lon, n_points in high_risk_clusters:
+        # Cluster MUITO concentrado (raio ~500m) para índice alto
+        lats = np.random.normal(lat, 0.005, n_points)
+        lons = np.random.normal(lon, 0.005, n_points)
+        high_risk_points.extend(list(zip(lats, lons)))
+    
+    # Criar 5 clusters de MÉDIO RISCO (densidade média - 15-50 eventos/área)
+    medium_risk_clusters = [
+        (-23.560, -46.660, 800),   # Zona Oeste
+        (-23.590, -46.640, 700),   # Zona Sul
+        (-23.520, -46.615, 600),   # Zona Norte
+        (-23.565, -46.625, 600),   # Centro expandido
+        (-23.545, -46.670, 500),   # Vila Madalena
+    ]
+    
+    medium_risk_points = []
+    for lat, lon, n_points in medium_risk_clusters:
+        # Cluster moderadamente disperso (raio ~1.5km)
+        lats = np.random.normal(lat, 0.015, n_points)
+        lons = np.random.normal(lon, 0.015, n_points)
+        medium_risk_points.extend(list(zip(lats, lons)))
+    
+    # Criar BAIXO RISCO (disperso pela cidade - <15 eventos/área)
+    n_low_risk = 2000
+    lats_low = np.random.uniform(-23.80, -23.40, n_low_risk)
+    lons_low = np.random.uniform(-46.75, -46.45, n_low_risk)
+    low_risk_points = list(zip(lats_low, lons_low))
+    
+    # Combinar: ~40% alto risco, ~35% médio, ~25% baixo
+    all_points = high_risk_points + medium_risk_points + low_risk_points
+    n_total = len(all_points)
+    
+    lats = [p[0] for p in all_points]
+    lons = [p[1] for p in all_points]
+    
+    # Limitar aos bounds reais de SP
     lats = np.clip(lats, -23.99, -23.36)
     lons = np.clip(lons, -46.82, -46.37)
     
-    dates = pd.date_range('2013-01-01', '2025-01-31', periods=n_points)
+    # Datas distribuídas ao longo do período
+    dates = pd.date_range('2013-01-01', '2025-01-31', periods=n_total)
     
     return gpd.GeoDataFrame({
         'latitude': lats,
