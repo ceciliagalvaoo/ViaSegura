@@ -130,12 +130,27 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Execute o dashboard:
+4. **Obter os dados** (arquivo grande não incluído no repositório):
+
+O arquivo `data/acidente_transito.kmz` (326 MB) não está no GitHub devido ao limite de tamanho.
+
+**Fontes oficiais dos dados:**
+- **Chuva:** [DAEE SIBH](https://www.hidrologia.daee.sp.gov.br/) - Estação Mirante de Santana
+- **Acidentes:** [GeoSampa](https://geosampa.prefeitura.sp.gov.br/) - Camada de acidentes de trânsito
+- **Alagamento:** [GeoSampa](https://geosampa.prefeitura.sp.gov.br/) - Shapefiles de risco de ocorrência
+- **Contato:** Entre em contato com a equipe para receber os arquivos já processados
+
+Certifique-se de que os arquivos estejam em:
+- `data/chuva_sp.csv`
+- `data/acidente_transito.kmz`
+- `data/alagamento/` (shapefiles 2013-2025)
+
+5. Execute o dashboard:
 ```bash
 streamlit run dashboard.py
 ```
 
-5. Acesse no navegador:
+6. Acesse no navegador:
 ```
 http://localhost:8501
 ```
