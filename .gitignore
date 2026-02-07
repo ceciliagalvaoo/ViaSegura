@@ -37,6 +37,9 @@ wheels/
 data/temp/
 *.tmp
 
+# Arquivos grandes de dados (> 100 MB)
+data/acidente_transito.kmz
+
 # Banco de dados
 *.db
 *.sqlite
