@@ -11,12 +11,11 @@ from .etl_chuva import processar_dados_chuva_completo
 from .etl_acidentes import processar_dados_acidentes_completo
 from .etl_alagamento import processar_dados_alagamento_completo
 from .modelo_risco import ModeloRiscoViaSegura
-from .cadastros_alertas import GerenciadorCadastros
+
 
 __all__ = [
     'processar_dados_chuva_completo',
     'processar_dados_acidentes_completo',
     'processar_dados_alagamento_completo',
     'ModeloRiscoViaSegura',
-    'GerenciadorCadastros',
 ]
