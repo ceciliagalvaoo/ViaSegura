@@ -43,13 +43,10 @@ O **Energisa ViaSegura** é um sistema de mapeamento preditivo de risco que util
 - ✅ **Simulador de alertas por email** com previsão personalizada
 - ✅ Interface responsiva com cores da marca Energisa
 
-## 🚀 Deploy
+## Deploy
 
 **Link da aplicação:** [[Deploy (Demo))]](https://viasegura.onrender.com/)
 
-## 🎨 Wireframe
-
-**Link do wireframe:** [[Wireframe]](https://viasegura.onrender.com/)
 
 ## Equipe
 
