@@ -45,11 +45,11 @@ O **Energisa ViaSegura** é um sistema de mapeamento preditivo de risco que util
 
 ## 🚀 Deploy
 
-**Link da aplicação:** [Em breve - adicionar link do deploy aqui]
+**Link da aplicação:** [[Deploy (Demo))]](https://viasegura.onrender.com/)
 
 ## 🎨 Wireframe
 
-**Link do wireframe:** [Em breve - adicionar link do wireframe aqui]
+**Link do wireframe:** [[Wireframe]](https://viasegura.onrender.com/)
 
 ## Equipe
 
@@ -132,7 +132,7 @@ pip install -r requirements.txt
 
 4. **Obter os dados** (arquivo grande não incluído no repositório):
 
-O arquivo `data/acidente_transito.kmz` (326 MB) não está no GitHub devido ao limite de tamanho.
+O arquivo `data/acidente_transito.kmz` (326 MB) não está no GitHub devido ao limite de tamanho, sendo a razão do deploy estar em uma versão demo inicial.
 
 **Fontes oficiais dos dados:**
 - **Chuva:** [DAEE SIBH](https://www.hidrologia.daee.sp.gov.br/) - Estação Mirante de Santana

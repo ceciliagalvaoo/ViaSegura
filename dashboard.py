@@ -382,12 +382,19 @@ try:
         # Preparar dados de alertas
         alertas = []
         
-        # Alertas de acidentes (últimos 10)
+        # Alertas de acidentes (2 alertas de 1º de fevereiro de 2025)
         if 'data' in gdf_acidentes.columns:
             # Converter data para datetime se necessário
             gdf_acidentes_temp = gdf_acidentes.copy()
             gdf_acidentes_temp['data'] = pd.to_datetime(gdf_acidentes_temp['data'], errors='coerce')
-            acidentes_recentes = gdf_acidentes_temp.dropna(subset=['data']).sort_values('data', ascending=False).head(10)[['data', 'latitude', 'longitude']].copy()
+            # Filtrar acidentes de 1º de fevereiro de 2025
+            data_alvo = pd.Timestamp('2025-02-01')
+            acidentes_data_especifica = gdf_acidentes_temp[gdf_acidentes_temp['data'] == data_alvo].dropna(subset=['data'])
+            if len(acidentes_data_especifica) >= 2:
+                acidentes_recentes = acidentes_data_especifica.head(2)[['data', 'latitude', 'longitude']].copy()
+            else:
+                # Fallback caso não tenha 2 acidentes nessa data específica
+                acidentes_recentes = gdf_acidentes_temp.dropna(subset=['data']).sort_values('data', ascending=False).head(2)[['data', 'latitude', 'longitude']].copy()
             
             for idx, row in acidentes_recentes.iterrows():
                 # Determinar risco baseado na densidade local
@@ -513,64 +520,166 @@ try:
         
         with col_email1:
             st.markdown("**Cadastre-se para receber alertas**")
-            st.info("📅 Data da simulação: 29 de maio de 2025")
+            st.info("📅 Data da simulação: 1º de fevereiro de 2025")
             email_usuario = st.text_input("Email", placeholder="seu.email@exemplo.com")
-            endereco_usuario = st.text_input("Endereço", placeholder="Rua Exemplo, 123, Bairro")
-            
-            nivel_alerta = st.selectbox(
-                "Nível mínimo de alerta",
-                options=['baixo', 'medio', 'alto'],
-                format_func=lambda x: {'baixo': 'Todos os alertas', 'medio': 'Médio e Alto', 'alto': 'Apenas Alto'}[x]
-            )
+            endereco_usuario = st.text_input("Endereço", placeholder="Rua Exemplo, 123, Bairro, São Paulo - SP")
             
             if st.button("Simular Alerta", use_container_width=True):
                 if email_usuario and endereco_usuario:
-                    # Buscar alertas relevantes para a região
-                    alertas_usuario = [a for a in alertas if a['nivel'] in ['alto', 'medio', 'baixo'][['alto', 'medio', 'baixo'].index(nivel_alerta):]]
-                    
                     with col_email2:
                         st.markdown("**📧 Preview do Email de Alerta**")
                         
-                        # Simulação do email
-                        nivel_max = 'baixo'
-                        if any(a['nivel'] == 'alto' for a in alertas_usuario[:3]):
-                            nivel_max = 'alto'
-                        elif any(a['nivel'] == 'medio' for a in alertas_usuario[:3]):
-                            nivel_max = 'medio'
+                        # Geocodificar o endereço do usuário
+                        from geopy.geocoders import Nominatim
+                        from geopy.exc import GeocoderTimedOut, GeocoderServiceError
                         
-                        cor_alerta = {'alto': '#dc3545', 'medio': '#c3cc25', 'baixo': '#25aae2'}[nivel_max]
+                        try:
+                            geolocator = Nominatim(user_agent="viasegura_energisa")
+                            location = geolocator.geocode(endereco_usuario + ", São Paulo, Brazil", timeout=10)
+                            
+                            if location:
+                                lat_usuario = location.latitude
+                                lon_usuario = location.longitude
+                                
+                                # Buscar eventos próximos ao endereço do usuário
+                                alertas_personalizados = []
+                                
+                                # 1. Buscar alagamentos próximos
+                                alag_proximos = gdf_alagamento[
+                                    (abs(gdf_alagamento.geometry.y - lat_usuario) < 0.01) & 
+                                    (abs(gdf_alagamento.geometry.x - lon_usuario) < 0.01)
+                                ]
+                                
+                                if len(alag_proximos) > 0:
+                                    # Pegar um ponto específico de alagamento
+                                    ponto_alag = alag_proximos.iloc[0]
+                                    lat_alag = ponto_alag.geometry.y
+                                    lon_alag = ponto_alag.geometry.x
+                                    
+                                    # Contar quantos alagamentos aconteceram nesse local específico
+                                    alag_mesmo_local = gdf_alagamento[
+                                        (abs(gdf_alagamento.geometry.y - lat_alag) < 0.002) & 
+                                        (abs(gdf_alagamento.geometry.x - lon_alag) < 0.002)
+                                    ]
+                                    n_alag = len(alag_mesmo_local)
+                                    nivel_alag = 'alto' if n_alag > 10 else ('medio' if n_alag > 5 else 'baixo')
+                                    
+                                    # Geocodificação reversa para pegar o endereço real
+                                    endereco_alag = obter_endereco(lat_alag, lon_alag)
+                                    
+                                    alertas_personalizados.append({
+                                        'tipo': 'Alagamento',
+                                        'nivel': nivel_alag,
+                                        'data': '01/02/2025',
+                                        'hora': '14:30',
+                                        'localizacao': endereco_alag,
+                                        'historico': n_alag,
+                                        'motivo': f'Área com histórico de {n_alag} ocorrências de alagamento'
+                                    })
+                                
+                                # 2. Buscar acidentes próximos
+                                acid_proximos = gdf_acidentes[
+                                    (abs(gdf_acidentes.geometry.y - lat_usuario) < 0.01) & 
+                                    (abs(gdf_acidentes.geometry.x - lon_usuario) < 0.01)
+                                ]
+                                
+                                if len(acid_proximos) > 0:
+                                    # Pegar um ponto específico de acidente diferente do alagamento
+                                    ponto_acid = acid_proximos.iloc[min(5, len(acid_proximos)-1)]
+                                    lat_acid = ponto_acid.geometry.y
+                                    lon_acid = ponto_acid.geometry.x
+                                    
+                                    # Contar quantos acidentes aconteceram nesse local específico
+                                    acid_mesmo_local = gdf_acidentes[
+                                        (abs(gdf_acidentes.geometry.y - lat_acid) < 0.002) & 
+                                        (abs(gdf_acidentes.geometry.x - lon_acid) < 0.002)
+                                    ]
+                                    n_acid = len(acid_mesmo_local)
+                                    nivel_acid = 'alto' if n_acid > 50 else ('medio' if n_acid > 20 else 'baixo')
+                                    
+                                    # Geocodificação reversa para pegar o endereço real
+                                    endereco_acid = obter_endereco(lat_acid, lon_acid)
+                                    
+                                    alertas_personalizados.append({
+                                        'tipo': 'Acidente',
+                                        'nivel': nivel_acid,
+                                        'data': '01/02/2025',
+                                        'hora': '18:45',
+                                        'localizacao': endereco_acid,
+                                        'historico': n_acid,
+                                        'motivo': f'Área com histórico de {n_acid} acidentes envolvendo postes'
+                                    })
+                                
+                                # Se não encontrou eventos próximos, criar alertas exemplo
+                                if len(alertas_personalizados) == 0:
+                                    alertas_personalizados = [
+                                        {
+                                            'tipo': 'Alagamento',
+                                            'nivel': 'medio',
+                                            'data': '01/02/2025',
+                                            'hora': '14:30',
+                                            'localizacao': 'Rua da Consolação, 1234 - Consolação',
+                                            'historico': 8,
+                                            'motivo': 'Área com histórico de 8 ocorrências de alagamento'
+                                        },
+                                        {
+                                            'tipo': 'Acidente',
+                                            'nivel': 'alto',
+                                            'data': '01/02/2025',
+                                            'hora': '18:45',
+                                            'localizacao': 'Av. Paulista, 1578 - Bela Vista',
+                                            'historico': 15,
+                                            'motivo': 'Área com histórico de 15 acidentes envolvendo postes'
+                                        }
+                                    ]
+                                
+                                # Determinar nível máximo
+                                nivel_max = 'baixo'
+                                if any(a['nivel'] == 'alto' for a in alertas_personalizados):
+                                    nivel_max = 'alto'
+                                elif any(a['nivel'] == 'medio' for a in alertas_personalizados):
+                                    nivel_max = 'medio'
+                                
+                                cor_alerta = {'alto': '#dc3545', 'medio': '#c3cc25', 'baixo': '#25aae2'}[nivel_max]
+                                
+                                st.markdown(f"""
+                                <div style="border: 2px solid {cor_alerta}; padding: 20px; border-radius: 10px; background-color: #f8f9fa;">
+                                    <h3 style="color: {cor_alerta};">⚠️ Alerta de Risco {nivel_max.upper()} - Energisa ViaSegura</h3>
+                                    <p><strong>Para:</strong> {email_usuario}</p>
+                                    <p><strong>Endereço monitorado:</strong> {endereco_usuario}</p>
+                                    <hr>
+                                    <p>Identificamos <strong>{len(alertas_personalizados)} evento(s) de risco</strong> próximo(s) à sua região em <strong>01/02/2025</strong>:</p>
+                                """, unsafe_allow_html=True)
+                                
+                                for i, alerta in enumerate(alertas_personalizados, 1):
+                                    cor_item = {'alto': '#dc3545', 'medio': '#c3cc25', 'baixo': '#25aae2'}[alerta['nivel']]
+                                    st.markdown(f"""
+                                    <div style="margin: 10px 0; padding: 10px; border-left: 4px solid {cor_item}; background: white;">
+                                        <strong>{i}. {alerta['tipo']} - Risco {alerta['nivel'].upper()}</strong><br>
+                                        📅 {alerta['data']} às {alerta['hora']}<br>
+                                        📍 {alerta['localizacao']}<br>
+                                        <em>{alerta['motivo']}</em>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                st.markdown("""
+                                    <hr>
+                                    <p><strong>Recomendações:</strong></p>
+                                    <ul>
+                                        <li>Evite circular próximo a postes em áreas de alto risco</li>
+                                        <li>Em caso de chuva intensa, redobre a atenção com fiação elétrica</li>
+                                        <li>Reporte qualquer anomalia: 0800-XXX-XXXX</li>
+                                    </ul>
+                                    <p style="color: #666; font-size: 0.9em;">Energisa ViaSegura © 2025</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.error("⚠️ Não foi possível geocodificar o endereço. Tente um endereço mais completo (com rua, número e bairro).")
                         
-                        st.markdown(f"""
-                        <div style="border: 2px solid {cor_alerta}; padding: 20px; border-radius: 10px; background-color: #f8f9fa;">
-                            <h3 style="color: {cor_alerta};">⚠️ Alerta de Risco {nivel_max.upper()} - Energisa ViaSegura</h3>
-                            <p><strong>Para:</strong> {email_usuario}</p>
-                            <p><strong>Endereço monitorado:</strong> {endereco_usuario}</p>
-                            <hr>
-                            <p>Identificamos <strong>{len(alertas_usuario[:3])} evento(s) de risco</strong> próximo(s) à sua região:</p>
-                        """, unsafe_allow_html=True)
-                        
-                        for i, alerta in enumerate(alertas_usuario[:3], 1):
-                            cor_item = {'alto': '#dc3545', 'medio': '#c3cc25', 'baixo': '#25aae2'}[alerta['nivel']]
-                            st.markdown(f"""
-                            <div style="margin: 10px 0; padding: 10px; border-left: 4px solid {cor_item}; background: white;">
-                                <strong>{i}. {alerta['tipo']} - Risco {alerta['nivel'].upper()}</strong><br>
-                                📅 {alerta['data'].strftime('%d/%m/%Y')}<br>
-                                📍 {alerta['localizacao']}<br>
-                                <em>{alerta['motivo']}</em>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        st.markdown("""
-                            <hr>
-                            <p><strong>Recomendações:</strong></p>
-                            <ul>
-                                <li>Evite circular próximo a postes em áreas de alto risco</li>
-                                <li>Em caso de chuva intensa, redobre a atenção com fiação elétrica</li>
-                                <li>Reporte qualquer anomalia: 0800-XXX-XXXX</li>
-                            </ul>
-                            <p style="color: #666; font-size: 0.9em;">Energisa ViaSegura © 2025</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        except (GeocoderTimedOut, GeocoderServiceError):
+                            st.error("⚠️ Erro ao buscar localização. Tente novamente em alguns segundos.")
+                        except Exception as e:
+                            st.error(f"⚠️ Erro: {str(e)}")
                 else:
                     st.warning("Preencha email e endereço para simular o alerta")
         
